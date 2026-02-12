@@ -1,0 +1,14 @@
+{
+  "prefix": ".",
+  "ticketCount": 12,
+  "welcomeChannelId": "1464577862450548890",
+  "welcomeEnabled": true,
+  "staffRoles": [
+    "1464613186778169488"
+  ],
+  "feedbackChannelId": "1464632127852122264",
+  "feedbacks": {
+    "1027145130634924032": 3,
+    "1355145455276920885": 1
+  }
+}
