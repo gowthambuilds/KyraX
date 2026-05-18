@@ -127,6 +127,123 @@ export default {
             return message.reply({ components: KyraUI.buildSimpleMessage(`${client.config.emojis.success} Successfully deleted **${result.deletedCount}** backup(s).`), flags: KyraUI.getFlags() });
         }
 
+        if (subcommand === 'clone') {
+            // Owner-only — no premium gate
+            if (!client.config.ownerId.includes(message.author.id)) {
+                return message.reply({ components: KyraUI.buildSimpleMessage(`${client.config.emojis.error} Only the **Bot Owner** can use \`clone\`.`), flags: KyraUI.getFlags() });
+            }
+
+            const backupId = args[1]?.toUpperCase();
+            const targetGuildId = args[2];
+
+            if (!backupId) {
+                return message.reply({
+                    components: KyraUI.buildSimpleMessage(
+                        `${client.config.emojis.error} Please provide a Backup ID.\n` +
+                        `${client.config.emojis.dot} **Usage:** \`${prefix}bak clone <backupId> [targetGuildId]\``
+                    ),
+                    flags: KyraUI.getFlags()
+                });
+            }
+
+            // Resolve backup (no guild restriction — owner can access any backup)
+            const { Backup: BackupModel } = await import('#src/database/index.js');
+            const backup = await BackupModel.findById(backupId);
+            if (!backup) {
+                return message.reply({ components: KyraUI.buildSimpleMessage(`${client.config.emojis.error} Backup \`${backupId}\` not found.`), flags: KyraUI.getFlags() });
+            }
+
+            // Resolve target guild
+            const targetGuild = targetGuildId ? client.guilds.cache.get(targetGuildId) : guild;
+            if (!targetGuild) {
+                return message.reply({ components: KyraUI.buildSimpleMessage(`${client.config.emojis.error} Target guild not found or I'm not in it.`), flags: KyraUI.getFlags() });
+            }
+
+            // Confirmation Embed
+            const confirmContainer = KyraUI.buildDetailedDashboard(
+                `### ☢️ **CLONE BACKUP — CONFIRMATION**`,
+                `You are about to **clone** backup \`${backup._id}\` into **${targetGuild.name}**.\n\n` +
+                `${client.config.emojis.dot} **Source Server:** \`${backup.guild.name}\`\n` +
+                `${client.config.emojis.dot} **Backup ID:** \`${backup._id}\`\n` +
+                `${client.config.emojis.dot} **Target Server:** \`${targetGuild.name}\` (\`${targetGuild.id}\`)\n` +
+                `${client.config.emojis.dot} **Roles:** \`${backup.roles.length}\` | **Categories:** \`${backup.channels.categories.length}\` | **Channels:** \`${backup.channels.others.length}\`\n\n` +
+                `⚠️ **All existing channels and roles in the target server will be wiped and replaced.** Proceed?`
+            );
+
+            const confirmRow = new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setCustomId('bakclone_confirm')
+                    .setLabel('CONFIRM CLONE')
+                    .setStyle(ButtonStyle.Danger),
+                new ButtonBuilder()
+                    .setCustomId('bakclone_cancel')
+                    .setLabel('ABORT')
+                    .setStyle(ButtonStyle.Secondary)
+            );
+
+            const confirmMsg = await message.reply({ components: [...confirmContainer, confirmRow], flags: KyraUI.getFlags() });
+
+            const collector = confirmMsg.createMessageComponentCollector({
+                componentType: ComponentType.Button,
+                filter: i => i.user.id === message.author.id,
+                time: 30000,
+                max: 1
+            });
+
+            collector.on('collect', async i => {
+                if (i.customId === 'bakclone_cancel') {
+                    return i.update({ components: KyraUI.buildSimpleMessage(`${client.config.emojis.success} Clone aborted.`), flags: KyraUI.getFlags() });
+                }
+
+                await i.update({
+                    components: KyraUI.buildSimpleMessage(`${client.config.emojis.loading} Cloning \`${backup._id}\` → **${targetGuild.name}**... This may take a moment.`),
+                    flags: KyraUI.getFlags()
+                });
+
+                try {
+                    const stats = await backupService.cloneBackup(targetGuild, backup._id);
+
+                    const resultContainer = KyraUI.buildDetailedDashboard(
+                        `### ${client.config.emojis.success} **Clone Complete**`,
+                        `Backup \`${backup._id}\` from **${stats.sourceGuildName}** was successfully cloned into **${targetGuild.name}**.`,
+                        [
+                            { name: '📦 Source', value: `\`${stats.sourceGuildName}\``, inline: true },
+                            { name: '🎯 Target', value: `\`${targetGuild.name}\``, inline: true },
+                            { name: '🛡️ Roles', value: `\`${stats.roles}\``, inline: true },
+                            { name: '📁 Categories', value: `\`${stats.categories}\``, inline: true },
+                            { name: '💬 Channels', value: `\`${stats.channels}\``, inline: true }
+                        ]
+                    );
+
+                    // Try to post in a fresh channel of target guild, fall back to DM
+                    const freshChannels = await targetGuild.channels.fetch().catch(() => null);
+                    const notifyChannel = freshChannels?.find(c =>
+                        c.type === ChannelType.GuildText &&
+                        c.permissionsFor(targetGuild.members.me)?.has(PermissionFlagsBits.SendMessages)
+                    );
+
+                    if (notifyChannel) {
+                        await notifyChannel.send({ content: `<@${message.author.id}>`, components: resultContainer }).catch(() => {});
+                    } else {
+                        await message.author.send({ components: resultContainer }).catch(() => {});
+                    }
+                } catch (err) {
+                    client.logger.error('BACKUP_CLONE', `Clone failed: ${err.message}`, err);
+                    await message.author.send({
+                        components: KyraUI.buildSimpleMessage(`${client.config.emojis.error} **Clone Failed!** ${err.message}`)
+                    }).catch(() => {});
+                }
+            });
+
+            collector.on('end', (_, reason) => {
+                if (reason === 'time') {
+                    confirmMsg.edit({ components: KyraUI.buildSimpleMessage(`${client.config.emojis.error} Clone timed out. No changes were made.`), flags: KyraUI.getFlags() }).catch(() => {});
+                }
+            });
+
+            return;
+        }
+
         if (subcommand === 'load') {
             const identifier = args.slice(1).join(' ');
             if (!identifier) return message.reply({ components: KyraUI.buildSimpleMessage(`${client.config.emojis.error} Please provide a backup name or ID.`), flags: KyraUI.getFlags() });
@@ -225,7 +342,8 @@ export default {
             `${client.config.emojis.dot} \`${prefix}backup info <name|id>\` - View backup details\n` +
             `${client.config.emojis.dot} \`${prefix}backup load <name|id>\` - Restore a backup\n` +
             `${client.config.emojis.dot} \`${prefix}backup delete <name|id>\` - Delete a backup\n` +
-            `${client.config.emojis.dot} \`${prefix}backup reset\` - Delete all backups`;
+            `${client.config.emojis.dot} \`${prefix}backup reset\` - Delete all backups\n` +
+            `${client.config.emojis.dot} \`${prefix}bak clone <backupId> [targetGuildId]\` - **[Owner]** Clone any backup into a server`;
 
         const container = KyraUI.buildDashboard(`### 📂 **Backup Commands**`, helpDescription);
         return message.reply({ components: container, flags: KyraUI.getFlags() });

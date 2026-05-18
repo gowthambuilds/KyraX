@@ -24,104 +24,150 @@ export default {
         const query = interaction ? interaction.options.getString('query') : args.join(' ');
 
         if (!member.voice.channel) {
-            const errorEmbed = KyraUI.buildSimpleMessage(`${client.config.emojis.error} You need to be in a voice channel to play music.`, client);
-            return interaction ? interaction.reply({ components: errorEmbed, flags: KyraUI.getFlags() }) : message.reply({ components: errorEmbed, flags: KyraUI.getFlags() });
+            const errorEmbed = KyraUI.buildSimpleMessage(`${client.config.emojis.error} You need to be in a voice channel to play music.`);
+            return interaction
+                ? interaction.reply({ components: errorEmbed, flags: KyraUI.getFlags() })
+                : message.reply({ components: errorEmbed, flags: KyraUI.getFlags() });
         }
 
         if (!query) {
-            const errorEmbed = KyraUI.buildSimpleMessage(`${client.config.emojis.error} Please provide a song name or link.`, client);
-            return interaction ? interaction.reply({ components: errorEmbed, flags: KyraUI.getFlags() }) : message.reply({ components: errorEmbed, flags: KyraUI.getFlags() });
+            const errorEmbed = KyraUI.buildSimpleMessage(`${client.config.emojis.error} Please provide a song name or link.`);
+            return interaction
+                ? interaction.reply({ components: errorEmbed, flags: KyraUI.getFlags() })
+                : message.reply({ components: errorEmbed, flags: KyraUI.getFlags() });
         }
 
-        // Detect if query is a URL
         const isUrl = /^https?:\/\//.test(query);
 
-        // Send loading message
-        const loadingMsg = KyraUI.buildSimpleMessage(`${client.config.emojis.loading} ${isUrl ? 'Processing link...' : `Searching for **${query}**...`}`);
         let responseMsg;
-
         if (interaction) {
             await interaction.deferReply();
         } else {
+            const loadingMsg = KyraUI.buildSimpleMessage(`${client.config.emojis.loading} Searching...`);
             responseMsg = await message.reply({ components: loadingMsg, flags: KyraUI.getFlags() });
         }
 
         try {
-            // Optimize VC Bitrate for Quality
-            if (member.voice.channel.viewable && member.voice.channel.manageable) {
-                const maxBitrate = member.guild.maximumBitrate;
-                if (member.voice.channel.bitrate < maxBitrate) {
-                    await member.voice.channel.setBitrate(maxBitrate).catch(() => { });
+            const queryLower = query.toLowerCase();
+            const forcedYouTube = queryLower.startsWith('youtube ') || queryLower.startsWith('yt ');
+            const searchTerm = forcedYouTube
+                ? (queryLower.startsWith('youtube ') ? query.substring(8).trim() : query.substring(3).trim())
+                : query;
+
+            const safeSearch = async (term, engine) => {
+                try {
+                    const searchResult = await client.lavalink.kazagumo.search(term, {
+                        requester: member.user,
+                        ...(engine && { engine })
+                    });
+                    return (searchResult?.tracks?.length > 0) ? searchResult : null;
+                } catch (e) {
+                    if (e instanceof SyntaxError || e.message?.includes('JSON')) {
+                        client.logger.warn('Music', `Engine '${engine || 'default'}' returned invalid JSON.`);
+                    } else {
+                        client.logger.error('Music', `Search error on engine '${engine || 'default'}':`, e.message);
+                    }
+                    return null;
                 }
+            };
+
+            // Run player creation and search in parallel
+            const [player, result] = await Promise.all([
+                (async () => {
+                    const existingPlayer = client.lavalink.kazagumo.players.get(member.guild.id);
+                    if (existingPlayer) return existingPlayer;
+
+                    return await client.lavalink.kazagumo.createPlayer({
+                        guildId: member.guild.id,
+                        textId: channel.id,
+                        voiceId: member.voice.channel.id,
+                        volume: 100,
+                        deaf: true
+                    });
+                })(),
+
+                isUrl ? safeSearch(query) : safeSearch(searchTerm, 'youtube_music')
+            ]);
+
+            // Non-blocking bitrate optimization
+            if (member.voice.channel?.viewable && member.voice.channel?.manageable) {
+                setImmediate(() => {
+                    try {
+                        const maxBitrate = member.guild.maximumBitrate;
+                        if (member.voice.channel.bitrate < maxBitrate) {
+                            member.voice.channel.setBitrate(maxBitrate).catch(() => { });
+                        }
+                    } catch { }
+                });
             }
 
-            // Get Kazagumo player
-            const player = await client.lavalink.kazagumo.createPlayer({
-                guildId: member.guild.id,
-                textId: channel.id,
-                voiceId: member.voice.channel.id,
-                volume: 100,
-                deaf: true
-            });
-
-            let result = await client.lavalink.kazagumo.search(query, { requester: member.user });
-
-            // Fallback Search Logic
-            if (!result.tracks.length) {
-                result = await client.lavalink.kazagumo.search(query, { requester: member.user, engine: 'soundcloud' });
-                if (!result.tracks.length) {
-                    result = await client.lavalink.kazagumo.search(`ytsearch:${query}`, { requester: member.user });
-                }
+            if (!result || !result.tracks?.length) {
+                const errorEmbed = KyraUI.buildSimpleMessage(
+                    `${client.config.emojis.error} No results found for **${query}**.`
+                );
+                return interaction
+                    ? interaction.editReply({ components: errorEmbed, flags: KyraUI.getFlags() })
+                    : responseMsg.edit({ components: errorEmbed, flags: KyraUI.getFlags() });
             }
 
-            if (!result.tracks.length) {
-                const errorEmbed = KyraUI.buildSimpleMessage(`${client.config.emojis.error} No results found for **${query}**.`);
-                if (interaction) return interaction.editReply({ components: errorEmbed, flags: KyraUI.getFlags() });
-                if (responseMsg) return responseMsg.edit({ components: errorEmbed, flags: KyraUI.getFlags() });
-                return message.reply({ components: errorEmbed, flags: KyraUI.getFlags() });
-            }
-
+            // Add tracks to queue
             if (result.type === 'PLAYLIST') {
-                for (const track of result.tracks) {
-                    player.queue.add(track);
-                }
+                player.queue.add(...result.tracks);
             } else {
                 player.queue.add(result.tracks[0]);
             }
 
-            if (!player.playing && !player.paused) player.play();
+            // Start playing
+            if (!player.playing && !player.paused) {
+                player.play();
+            }
 
             const track = result.tracks[0];
             const isPlaylist = result.type === 'PLAYLIST';
             const count = isPlaylist ? result.tracks.length : 1;
 
+            const isSpotifySrc = track.uri?.includes('spotify.com');
+            const isYTSrc = track.uri?.includes('youtube.com') || track.uri?.includes('youtu.be');
+            const srcEmoji = isSpotifySrc
+                ? (client.config.emojis.spotify || '🎵')
+                : (isYTSrc ? (client.config.emojis.youtube || '🎵') : (client.config.emojis.music || '🎵'));
+
             const container = new ContainerBuilder();
-            container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`### 📥 **Added to Queue**`));
+            container.addTextDisplayComponents(
+                new TextDisplayBuilder().setContent(`### ${srcEmoji} **Added to Queue**`)
+            );
 
             const section = new SectionBuilder()
                 .addTextDisplayComponents(new TextDisplayBuilder().setContent(
-                    `**${isPlaylist ? result.playlistName : track.title}**\n` +
-                    `${isPlaylist ? `${client.config.emojis.dot} **Tracks:** \`${count}\`\n` : ''}` +
-                    `${client.config.emojis.dot} **Author:** ${track.author}\n` +
+                    `**[${track.title}](${track.uri})**\n` +
+                    `${isPlaylist ? `${client.config.emojis.dot} **Playlist:** ${result.playlistName} (${count} tracks)\n` : ''}` +
+                    `${client.config.emojis.dot} **Artist:** ${track.author}\n` +
                     `${client.config.emojis.dot} **Duration:** ${track.isStream ? 'LIVE' : formatTime(track.length)}\n` +
                     `${client.config.emojis.dot} **Requested by:** ${member.user.username}`
                 ))
-                .setThumbnailAccessory(new ThumbnailBuilder().setURL(track.thumbnail || client.user.displayAvatarURL()));
+                .setThumbnailAccessory(
+                    new ThumbnailBuilder().setURL(track.thumbnail || client.user.displayAvatarURL())
+                );
 
             container.addSectionComponents(section);
 
             const response = { components: [container], flags: KyraUI.getFlags() };
 
-            if (interaction) await interaction.editReply(response);
-            else if (responseMsg) await responseMsg.edit(response);
-            else await message.reply(response);
+            return interaction
+                ? interaction.editReply(response)
+                : responseMsg.edit(response);
 
         } catch (error) {
             client.logger.error('Music', `Failed to play track: ${query}`, error);
-            const errorEmbed = KyraUI.buildSimpleMessage(`${client.config.emojis.error} An error occurred while trying to play the track.`);
+            const errorEmbed = KyraUI.buildSimpleMessage(
+                `${client.config.emojis.error} An error occurred while trying to play the track.`
+            );
 
-            if (interaction && !interaction.replied) await interaction.editReply({ components: errorEmbed, flags: KyraUI.getFlags() });
-            else if (responseMsg) await responseMsg.edit({ components: errorEmbed, flags: KyraUI.getFlags() });
+            if (interaction) {
+                return interaction.editReply({ components: errorEmbed, flags: KyraUI.getFlags() }).catch(() => { });
+            } else if (responseMsg) {
+                return responseMsg.edit({ components: errorEmbed, flags: KyraUI.getFlags() }).catch(() => { });
+            }
         }
     }
 };

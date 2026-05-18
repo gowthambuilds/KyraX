@@ -14,8 +14,9 @@ import AutoResponse from './schemas/AutoResponse.js';
 import AutoReactor from './schemas/AutoReactor.js';
 import TempVoiceChannel from './schemas/TempVoiceChannel.js';
 import Backup from './schemas/Backup.js';
-
 import PremiumToken from './schemas/PremiumToken.js';
+import Ticket from './schemas/Ticket.js';
+import TicketPanel from './schemas/TicketPanel.js';
 
 export {
     connectDB,
@@ -34,5 +35,7 @@ export {
     AutoReactor,
     TempVoiceChannel,
     Backup,
-    PremiumToken
+    PremiumToken,
+    Ticket,
+    TicketPanel
 };

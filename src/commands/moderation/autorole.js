@@ -6,7 +6,7 @@ export default {
     name: 'autorole',
     description: 'Manage automatic role assignment for new members',
     slash: true,
-    userPermissions: [PermissionFlagsBits.ManageGuild],
+    permissions: [PermissionFlagsBits.ManageGuild],
     options: [
         {
             name: 'add',

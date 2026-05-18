@@ -33,11 +33,7 @@ export class KyraUI {
      */
     static buildSimpleMessage(content) {
         const container = new ContainerBuilder();
-
-        container.addTextDisplayComponents(
-            new TextDisplayBuilder().setContent(content)
-        );
-
+        container.addTextDisplayComponents(new TextDisplayBuilder().setContent(content));
         return [container];
     }
 
@@ -53,9 +49,7 @@ export class KyraUI {
         // Ensure title is a heading
         const formattedTitle = title.startsWith('#') ? title : `### ${title}`;
 
-        container.addTextDisplayComponents(
-            new TextDisplayBuilder().setContent(formattedTitle)
-        );
+        container.addTextDisplayComponents(new TextDisplayBuilder().setContent(formattedTitle));
 
         container.addSeparatorComponents(
             new SeparatorBuilder()
@@ -63,9 +57,7 @@ export class KyraUI {
                 .setDivider(true)
         );
 
-        container.addTextDisplayComponents(
-            new TextDisplayBuilder().setContent(description)
-        );
+        container.addTextDisplayComponents(new TextDisplayBuilder().setContent(description));
 
         // Optional: Add a small spacer at the bottom for breathing room
         container.addSeparatorComponents(
@@ -76,6 +68,7 @@ export class KyraUI {
 
         return [container];
     }
+
     /**
      * Build a highly detailed dashboard with fields and multiple separators
      * @param {string} title 
@@ -88,9 +81,7 @@ export class KyraUI {
 
         // 1. Heading
         const formattedTitle = title.startsWith('#') ? title : `### ${title}`;
-        container.addTextDisplayComponents(
-            new TextDisplayBuilder().setContent(formattedTitle)
-        );
+        container.addTextDisplayComponents(new TextDisplayBuilder().setContent(formattedTitle));
 
         // 2. Main Divider
         container.addSeparatorComponents(
@@ -101,9 +92,7 @@ export class KyraUI {
 
         // 3. Description (if any)
         if (description) {
-            container.addTextDisplayComponents(
-                new TextDisplayBuilder().setContent(description)
-            );
+            container.addTextDisplayComponents(new TextDisplayBuilder().setContent(description));
         }
 
         // 4. Fields (if any)
@@ -118,9 +107,7 @@ export class KyraUI {
             }
 
             const fieldsContent = fields.map(f => `**${f.name}:** ${f.value}`).join('\n');
-            container.addTextDisplayComponents(
-                new TextDisplayBuilder().setContent(fieldsContent)
-            );
+            container.addTextDisplayComponents(new TextDisplayBuilder().setContent(fieldsContent));
         }
 
         // 5. Bottom Divider & Spacer
@@ -138,6 +125,7 @@ export class KyraUI {
 
         return [container];
     }
+
     /**
      * Build a usage error message
      * @param {string} usage 
@@ -145,11 +133,9 @@ export class KyraUI {
      */
     static buildUsage(usage) {
         const container = new ContainerBuilder();
-
         container.addTextDisplayComponents(
             new TextDisplayBuilder().setContent(`${config.emojis.error || '❌'} **Invalid Usage**\n${config.emojis.dot || '•'} **Usage:** \`${usage}\``)
         );
-
         return [container];
     }
 
@@ -178,7 +164,6 @@ export class KyraUI {
         };
     }
 
-
     /**
      * Build a "Premium Required" message with C2A and buttons
      * @param {Object} client 
@@ -202,7 +187,7 @@ export class KyraUI {
                     .setStyle(ButtonStyle.Link),
                 new ButtonBuilder()
                     .setLabel('Upgrade to Premium')
-                    .setURL(config.bot.supportServer) // Can be website if specific upgrade link exists
+                    .setURL(config.bot.supportServer)
                     .setStyle(ButtonStyle.Link)
             )
         );

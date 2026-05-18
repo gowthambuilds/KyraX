@@ -4,6 +4,7 @@ import path from 'path';
 export class EventHandler {
     constructor(client) {
         this.client = client;
+        this.activeListeners = new Map(); // EventName -> Array of listener wrapper functions
     }
 
     async loadEvents() {
@@ -14,14 +15,26 @@ export class EventHandler {
         for (const file of eventFiles) {
             const filePath = path.resolve(file);
             try {
-                const { default: event } = await import(`file://${filePath}`);
+                const { default: event } = await import(`file://${filePath}?update=${Date.now()}`);
 
                 if (event?.name) {
+                    const listener = (...args) => event.execute(...args, this.client);
+
                     if (event.once) {
-                        this.client.once(event.name, (...args) => event.execute(...args, this.client));
+                        this.client.once(event.name, listener);
                     } else {
-                        this.client.on(event.name, (...args) => event.execute(...args, this.client));
+                        this.client.on(event.name, listener);
                     }
+
+                    // Store for removal
+                    if (!this.activeListeners.has(event.name)) {
+                        this.activeListeners.set(event.name, []);
+                    }
+                    this.activeListeners.get(event.name).push({
+                        fn: listener,
+                        once: event.once
+                    });
+
                     this.client.logger.info('EVENT', `Kernel hook connected: ${event.name}`);
                     successCount++;
                 } else {
@@ -38,5 +51,16 @@ export class EventHandler {
         } else {
             this.client.logger.success('EventHandler', `Integrated all ${successCount} event listeners into the kernel.`);
         }
+    }
+
+    async reloadEvents() {
+        // Remove all active listeners added by this handler
+        for (const [eventName, listeners] of this.activeListeners.entries()) {
+            for (const listener of listeners) {
+                this.client.removeListener(eventName, listener.fn);
+            }
+        }
+        this.activeListeners.clear();
+        await this.loadEvents();
     }
 }

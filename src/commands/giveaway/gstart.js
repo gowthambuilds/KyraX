@@ -7,7 +7,7 @@ export default {
     description: 'Start a new giveaway',
     aliases: ['giveaway', 'gcreate'],
     slash: true,
-    userPermissions: [PermissionFlagsBits.ManageGuild],
+    permissions: [PermissionFlagsBits.ManageGuild],
     options: [
         { name: 'duration', description: 'Duration (e.g., 1h, 24h, 1d)', type: 3, required: true },
         { name: 'winners', description: 'Number of winners', type: 4, required: true, min_value: 1, max_value: 20 },

@@ -50,13 +50,16 @@ export default {
 
         const categories = {
             home: {
-                title: `### 📚 **Help Center (v1.6)**`,
+                title: `### 📚 **Help Center (v1.7)**`,
                 description: `### ${client.config.emojis.news || '<a:news:1468148930008186913>'} **What's New**\n` +
+                    `${client.config.emojis.dot} **Ignore System:** mask channels/users/roles from bot features!\n` +
+                    `${client.config.emojis.dot} **Elite Purge:** advanced filters for bots, humans, media, and more!\n` +
+                    `${client.config.emojis.dot} **Confession System:** transform messages into premium shareable images!\n` +
+                    `${client.config.emojis.dot} **AI Server Builder:** Instantly generate entire servers with \`${guildPrefix}autobuild\`!\n` +
                     `${client.config.emojis.dot} **Pro Token System:** Detailed claim history and safety confirmations!\n` +
-                    `${client.config.emojis.dot} **Token Info:** Check token duration/uses without claiming.\n` +
                     `${client.config.emojis.dot} **Profiles:** Customize bot name, avatar, and banner per-server.\n\n` +
                     `### ⭐ **Star Feature**\n` +
-                    `${client.config.emojis.dot} **Audit Logs:** Bot owners can now track exactly who claimed which token and in which guild!\n\n` +
+                    `${client.config.emojis.dot} **Quiet Zones:** Use \`${guildPrefix}ignore\` to keep Kyra X silent in specific channels or for specific roles/users!\n\n` +
                     `**Stats**\n` +
                     `${client.config.emojis.dot} **Servers:** \`${client.guilds.cache.size.toLocaleString()}\`\n` +
                     `${client.config.emojis.dot} **Users:** \`${client.guilds.cache.reduce((acc, g) => acc + g.memberCount, 0).toLocaleString()}\`\n` +
@@ -66,6 +69,7 @@ export default {
             admin: {
                 title: `### ⚙️ **Admin Module**`,
                 description: `Server configuration and automation settings.\n\n` +
+                    `${client.config.emojis.dot} \`${guildPrefix}ignore\`: \`channel\`, \`user\`, \`role\`, \`list\`, \`reset\`\n` +
                     `${client.config.emojis.dot} \`${guildPrefix}greet\`: \`setup\`, \`toggle\`, \`test\`, \`config\`, \`edit\`\n` +
                     `${client.config.emojis.dot} \`${guildPrefix}quickgreet\`: \`add\`, \`remove\`, \`list\`, \`reset\`, \`test\`\n` +
                     `${client.config.emojis.dot} \`${guildPrefix}autoreact\`: \`add\`, \`remove\`, \`list\`, \`reset\`\n` +
@@ -81,7 +85,7 @@ export default {
                 title: `### ${client.config.emojis.utility} **Utility Module**`,
                 description: `High-efficiency tools for server management and user interaction.\n\n` +
                     `${client.config.emojis.dot} \`${guildPrefix}userinfo\`, \`${guildPrefix}serverinfo\`, \`${guildPrefix}avatar\`, \`${guildPrefix}banner\`, \`${guildPrefix}roleinfo\`, \`${guildPrefix}stats\`\n` +
-                    `${client.config.emojis.dot} \`${guildPrefix}servericon\`, \`${guildPrefix}serverbanner\`, \`${guildPrefix}nick\`, \`${guildPrefix}afk\`, \`${guildPrefix}prefix\`\n` +
+                    `${client.config.emojis.dot} \`${guildPrefix}servericon\`, \`${guildPrefix}serverbanner\`, \`${guildPrefix}nick\`, \`${guildPrefix}afk\`, \`${guildPrefix}prefix\`, \`${guildPrefix}confession\`\n` +
                     `${client.config.emojis.dot} \`${guildPrefix}timer\`, \`${guildPrefix}snipe\`, \`${guildPrefix}ping\`, \`${guildPrefix}membercount\`, \`${guildPrefix}uptime\`, \`${guildPrefix}perms\`, \`${guildPrefix}embed\`\n` +
                     `${client.config.emojis.dot} \`${guildPrefix}logs\`: \`create\`, \`enable\`, \`disable\`, \`delete\`\n` +
                     `${client.config.emojis.dot} \`${guildPrefix}translate\`, \`${guildPrefix}poll\`, \`${guildPrefix}serverstats\`, \`${guildPrefix}lastping\`, \`${guildPrefix}users\`, \`${guildPrefix}support\`\n` +
@@ -96,7 +100,8 @@ export default {
                     `${client.config.emojis.dot} \`${guildPrefix}roleall\`: \`add\`, \`remove\` \`target: <humans|bots|all>\` \`role: <role>\`\n` +
                     `${client.config.emojis.dot} \`${guildPrefix}autorole\`: \`add\`, \`remove\`, \`list\`, \`reset\`\n` +
                     `${client.config.emojis.dot} \`${guildPrefix}warn\`, \`${guildPrefix}warnings\`, \`${guildPrefix}delwarn\`, \`${guildPrefix}clearwarn\`\n` +
-                    `${client.config.emojis.dot} \`${guildPrefix}purge\`, \`${guildPrefix}lock\`, \`${guildPrefix}unlock\`, \`${guildPrefix}slowmode\`, \`${guildPrefix}hide\`, \`${guildPrefix}unhide\`, \`${guildPrefix}nuke\`\n` +
+                    `${client.config.emojis.dot} \`${guildPrefix}purge\`: \`[filter]\` \`[count]\` (bots, humans, embeds, files, links, images)\n` +
+                    `${client.config.emojis.dot} \`${guildPrefix}lock\`, \`${guildPrefix}unlock\`, \`${guildPrefix}slowmode\`, \`${guildPrefix}hide\`, \`${guildPrefix}unhide\`, \`${guildPrefix}nuke\`\n` +
                     `${client.config.emojis.dot} \`${guildPrefix}lockall\`, \`${guildPrefix}unlockall\`, \`${guildPrefix}hideall\`, \`${guildPrefix}unhideall\`\n` +
                     `${client.config.emojis.dot} \`${guildPrefix}vmute\`, \`${guildPrefix}vunmute\`, \`${guildPrefix}vdeafen\`, \`${guildPrefix}vundeafen\`, \`${guildPrefix}sticky\``
             },
@@ -118,6 +123,7 @@ export default {
                 description: `Elite AI integration for intelligent conversations.\n\n` +
                     `${client.config.emojis.dot} \`${guildPrefix}aichannel\`: \`add\`, \`remove\`, \`reset\`, \`enable\`, \`disable\`\n` +
                     `${client.config.emojis.dot} \`${guildPrefix}resetai\`: Clear your AI memory\n` +
+                    `${client.config.emojis.dot} \`${guildPrefix}autobuild <prompt>\`: Elite AI-powered server generator (Owner Only)\n` +
                     `${client.config.emojis.dot} **Mention:** You can mention me (\`@${client.user.username} ping\`) to execute commands!`
             },
             premium: {

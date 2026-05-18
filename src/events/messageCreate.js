@@ -1,4 +1,4 @@
-import { Events } from 'discord.js';
+import { Events, PermissionFlagsBits } from 'discord.js';
 import { KyraUI } from '#classes/KyraUI';
 import { Guild, Member, User, AutoResponse, AutoReactor } from '#src/database/index.js';
 import { premiumService } from '#src/services/PremiumService.js';
@@ -38,8 +38,19 @@ export default {
             return;
         }
 
-        // --- PERFORMANCE OPTIMIZATION: Early Command Identification ---
+        // --- PERFORMANCE OPTIMIZATION: Early Identification ---
+        const isOwner = client.config.ownerId.includes(message.author.id);
         const defaultPrefix = client.config.bot.prefix;
+        const guildSettings = await Guild.findById(message.guild.id).lean();
+
+        // --- Ignore Logic Check ---
+        const isAdmin = message.member?.permissions.has(PermissionFlagsBits.Administrator);
+        const isIgnored = !isOwner && !isAdmin && (
+            guildSettings?.ignored?.channels?.includes(message.channel.id) ||
+            guildSettings?.ignored?.users?.includes(message.author.id) ||
+            message.member?.roles?.cache.some(r => guildSettings?.ignored?.roles?.includes(r.id))
+        );
+
         const mentionRegex = new RegExp(`^<@!?${client.user.id}>`);
 
         const isMention = mentionRegex.test(message.content);
@@ -65,28 +76,21 @@ export default {
         if (commandName) {
             const command = client.commands.get(commandName) || client.commands.find(cmd => cmd.aliases?.includes(commandName));
             if (command) {
-                // 1. Prefix Verification (For non-mentions, we need to check if server uses custom prefix)
-                let prefix = defaultPrefix;
-                let guildSettings = null;
+                // 1. Prefix Verification
+                let prefix = guildSettings?.prefix || defaultPrefix;
 
-                // Optimization: Only fetch from DB if NOT a mention (mentions bypass prefix)
-                // and if we are a priority command we lean() and fetch minimal.
+                // --- Ignore Logic Check (Commands Only) ---
+
+                if (isIgnored && command.name !== 'afk') return;
+
                 const priorityCommands = ['ban', 'kick', 'mute', 'timeout', 'warn', 'ping', 'purge', 'nuke'];
                 const isPriority = priorityCommands.includes(commandName) || priorityCommands.includes(command.name);
-
-                if (isPriority) {
-                    guildSettings = await Guild.findById(message.guild.id).select('prefix maintenance ai moderation').lean().catch(() => null);
-                    prefix = guildSettings?.prefix || defaultPrefix;
-                } else {
-                    // fall through to regular logic for non-priority
-                }
 
                 // If not a mention, and prefix doesn't match, it's not our command
                 if (!isMention && usedPrefix !== prefix && usedPrefix === defaultPrefix) {
                     // Custom prefix mismatch, fall through to regular data fetching
                 } else {
                     // 2. Security Checks
-                    const isOwner = client.config.ownerId.includes(message.author.id);
                     if (command.ownerOnly && !isOwner) {
                         const msg = KyraUI.buildSimpleMessage(`${client.config.emojis.error} This command is **owner-only**.`);
                         return message.reply({ components: msg, flags: KyraUI.getFlags() });
@@ -95,6 +99,14 @@ export default {
                     if (client.maintenanceMode && !isOwner) {
                         const maintenanceContainer = KyraUI.buildSimpleMessage(`⚙️ **Under Maintenance**\n\nSorry for the inconvenience! **Kyra X** is undergoing regular maintenance.`);
                         return message.reply({ components: maintenanceContainer, flags: KyraUI.getFlags() });
+                    }
+
+                    if (command.permissions && command.permissions.length > 0) {
+                        const missingPerms = command.permissions.filter(perm => !message.member?.permissions.has(perm));
+                        if (missingPerms.length > 0 && !isOwner) {
+                            const msg = KyraUI.buildSimpleMessage(`${client.config.emojis.error} You do not have permission to use this command.`);
+                            return message.reply({ components: msg, flags: KyraUI.getFlags() });
+                        }
                     }
 
                     // 3. PRIORITY EXECUTION (Ultrafast)
@@ -129,12 +141,11 @@ export default {
         }
 
         const resolved = await Promise.all(fetches);
-        const guildSettings = resolved[0];
+        // guildSettings is already fetched at the top
         const memberData = resolved[1];
         const autoResponder = resolved[2];
         const autoReactor = resolved[3];
         const mentionedMemberData = resolved[4];
-
         const prefix = guildSettings?.prefix || defaultPrefix;
 
         // --- AFK Removal (Non-blocking) ---
@@ -159,7 +170,7 @@ export default {
             });
         }
 
-        // --- Auto Responders & Reactors ---
+        // --- Auto Responders & Reactors (Enabled Globally) ---
         if (autoResponder) message.channel.send({ content: autoResponder.response }).catch(() => { });
         if (autoReactor) message.react(autoReactor.emoji).catch(() => { });
 
@@ -177,15 +188,13 @@ export default {
                 if (commandExists) { isPrefixless = true; finalUsedPrefix = ''; }
             }
             if (!isPrefixless) {
-                // AI Chat Logic
+                // AI Chat Logic (Restricted by Ignore)
                 const aiConf = guildSettings?.ai || { enabled: true, channels: [] };
                 if (aiConf.enabled && aiConf.channels.includes(message.channel.id)) {
                     message.channel.sendTyping().catch(() => { });
                     client.ai.generateResponse(message.author.id, message.content).then(response => {
                         if (response) message.reply({ content: response, allowedMentions: { parse: ['users'], repliedUser: false } }).catch(() => { });
                     }).catch(() => { });
-
-
                 }
                 return;
             }
@@ -197,6 +206,28 @@ export default {
 
         const command = client.commands.get(finalCmd) || client.commands.find(cmd => cmd.aliases && cmd.aliases.includes(finalCmd));
         if (!command) return;
+
+        // --- Ignore Logic Check (Regular Commands) ---
+        if (isIgnored && command.name !== 'afk') return;
+
+        // Security Checks for REGULAR PATH
+        if (command.ownerOnly && !isOwner) {
+            const msg = KyraUI.buildSimpleMessage(`${client.config.emojis.error} This command is **owner-only**.`);
+            return message.reply({ components: msg, flags: KyraUI.getFlags() });
+        }
+
+        if (client.maintenanceMode && !isOwner) {
+            const maintenanceContainer = KyraUI.buildSimpleMessage(`⚙️ **Under Maintenance**\n\nSorry for the inconvenience! **Kyra X** is undergoing regular maintenance.`);
+            return message.reply({ components: maintenanceContainer, flags: KyraUI.getFlags() });
+        }
+
+        if (command.permissions && command.permissions.length > 0) {
+            const missingPerms = command.permissions.filter(perm => !message.member?.permissions.has(perm));
+            if (missingPerms.length > 0 && !isOwner) {
+                const msg = KyraUI.buildSimpleMessage(`${client.config.emojis.error} You do not have permission to use this command.`);
+                return message.reply({ components: msg, flags: KyraUI.getFlags() });
+            }
+        }
 
         try {
             await command.execute({ client, message, args: finalArgs, prefix: finalUsedPrefix });

@@ -7,7 +7,7 @@ export default {
     description: 'Pick new winners for an ended giveaway',
     aliases: ['greroll', 'giveaway-reroll'],
     slash: true,
-    userPermissions: [PermissionFlagsBits.ManageGuild],
+    permissions: [PermissionFlagsBits.ManageGuild],
     options: [
         { name: 'message_id', description: 'The ID of the giveaway message', type: 3, required: true }
     ],

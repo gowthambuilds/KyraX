@@ -90,21 +90,23 @@ export default {
             const status = node.state === 1 ? '🟢 Connected' : '🔴 Disconnected';
 
             let content = '';
+            const nodeNameDisplay = node.name.includes('(Primary)') ? `🌟 **${node.name}**` : (node.name.includes('(Secondary)') ? `🛡️ **${node.name}**` : `🛰️ **${node.name}**`);
+
             if (!stats) {
-                content = `### 📡 **Node:** ${node.name} (${status})\n*No statistics available.*`;
+                content = `### ${nodeNameDisplay}\n${client.config.emojis.error} **Status:** Disconnected or inactive.\n*No statistics available.*`;
             } else {
                 const memUsed = stats.memory.used;
                 const memTotal = stats.memory.reservable;
                 const cpuLoad = stats.cpu.lavalinkLoad;
-                const memPercent = Math.round((memUsed / memTotal) * 100);
-                const cpuPercent = Math.round(cpuLoad * 100);
+                const memPercent = Math.round((memUsed / memTotal) * 100) || 0;
+                const cpuPercent = Math.round(cpuLoad * 100) || 0;
 
-                content = `### 🛰️ **Node:** ${node.name}\n` +
+                content = `### ${nodeNameDisplay}\n` +
                     `${client.config.emojis.dot} **Status:** ${status}\n` +
                     `${client.config.emojis.dot} **Uptime:** \`${formatUptime(stats.uptime)}\`\n` +
-                    `${client.config.emojis.dot} **Players:** \`${stats.playingPlayers}\` / \`${stats.players}\`\n\n` +
-                    `${client.config.emojis.dot} **CPU Load:** \`${cpuPercent}%\` / \`${stats.cpu.cores} Cores\`\n` +
-                    `${client.config.emojis.dot} **Memory Usage:** \`${formatBytes(memUsed)}\` / \`${formatBytes(memTotal)}\` (\`${memPercent}%\`)`;
+                    `${client.config.emojis.dot} **Players:** \`${stats.playingPlayers}\` active / \`${stats.players}\` total\n\n` +
+                    `${client.config.emojis.dot} **CPU Load:** \`${cpuPercent}%\` (\`${stats.cpu.cores} Cores\`)\n` +
+                    `${client.config.emojis.dot} **Memory:** \`${formatBytes(memUsed)}\` / \`${formatBytes(memTotal)}\` (\`${memPercent}%\`)`;
             }
 
             container.addTextDisplayComponents(new TextDisplayBuilder().setContent(content));

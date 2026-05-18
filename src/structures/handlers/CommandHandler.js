@@ -14,7 +14,7 @@ export class CommandHandler {
         for (const file of commandFiles) {
             const filePath = path.resolve(file);
             try {
-                const { default: command } = await import(`file://${filePath}`);
+                const { default: command } = await import(`file://${filePath}?update=${Date.now()}`);
 
                 if (command?.name) {
                     this.client.commands.set(command.name, command);
@@ -34,5 +34,10 @@ export class CommandHandler {
         } else {
             this.client.logger.success('CommandHandler', `Successfully indexed all ${successCount} application commands.`);
         }
+    }
+
+    async reloadCommands() {
+        this.client.commands.clear();
+        await this.loadCommands();
     }
 }

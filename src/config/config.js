@@ -25,15 +25,21 @@ export const config = {
     },
     nodes: [
         {
-            name: 'Serenetia v4',
+            name: 'Airanode (Primary)',
+            url: 'lava.airanode.cloud:25714',
+            auth: 'AnXCodeX',
+            secure: false
+        },
+        {
+            name: 'Public Lavalink v4.2 (Secondary)',
             url: 'lavalinkv4.serenetia.com:443',
             auth: 'https://dsc.gg/ajidevserver',
             secure: true
         }
     ],
     spotify: {
-        clientId: process.env.SPOTIFY_CLIENT_ID || 'your_spotify_client_id',
-        clientSecret: process.env.SPOTIFY_CLIENT_SECRET || 'your_spotify_client_secret'
+        clientId: process.env.SPOTIFY_CLIENT_ID,
+        clientSecret: process.env.SPOTIFY_CLIENT_SECRET
     },
     emojis
 };

@@ -7,7 +7,7 @@ export default {
     description: 'Manage AI-enabled channels and global toggle',
     aliases: ['ai', 'aichat'],
     slash: true,
-    userPermissions: [PermissionFlagsBits.ManageGuild],
+    permissions: [PermissionFlagsBits.ManageGuild],
     options: [
         {
             name: 'add',
@@ -47,9 +47,9 @@ export default {
         const executor = isSlash ? interaction.member : message.member;
         const guildId = isSlash ? interaction.guildId : message.guildId;
 
-        // Permission Check: Only Administrator can use this command
-        if (!executor.permissions.has(PermissionFlagsBits.Administrator)) {
-            const err = KyraUI.buildSimpleMessage(`${client.config.emojis.error} You need **Administrator** permissions to use this command.`);
+        // Permission Check: Only Manage Server can use this command
+        if (!executor.permissions.has(PermissionFlagsBits.ManageGuild)) {
+            const err = KyraUI.buildSimpleMessage(`${client.config.emojis.error} You need **Manage Server** permissions to use this command.`);
             return isSlash ? interaction.reply({ components: err, flags: KyraUI.getFlags(true) }) : message.reply({ components: err, flags: KyraUI.getFlags() }).catch(() => { });
         }
 

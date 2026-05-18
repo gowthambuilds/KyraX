@@ -45,7 +45,7 @@ export default {
         const statsContent =
             `### Bot Information\n` +
             `• **Bot Owner:** <@${process.env.OWNER_ID}>\n` +
-            `• **Developed By:** [Nextraforge](${client.config.bot.supportServer})\n` +
+            `• **Developed By:** [Building Anyways](${client.config.bot.supportServer})\n` +
             `• **Uptime:** \`${uptime}\`\n\n` +
 
             `### Performance & Limits\n` +

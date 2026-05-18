@@ -10,5 +10,7 @@ export default {
     premium: '<:premium:1466414984295743660>',
     music: '<a:Musica:1466758225947791360>',
     status: '<a:status:1466767009810485288>',
-    news: '<a:news:1468148930008186913>'  
+    news: '<a:news:1468148930008186913>',
+    spotify: '<a:spotify:1478742923565727775>',
+    youtube: '<a:YT:1478743099491749918>'
 };

@@ -20,6 +20,7 @@ export default {
             { name: 'maintenance', description: 'Toggle maintenance mode' },
             { name: 'nodestatus', description: 'View Lavalink node status' },
             { name: 'premium', description: 'Manage premium guilds' },
+            { name: 'reload', description: 'Refresh commands & events' },
             { name: 'restart', description: 'Restart the bot' },
             { name: 'serverlist', description: 'List all servers' },
             { name: 'ownercmds', description: 'List all owner commands' }

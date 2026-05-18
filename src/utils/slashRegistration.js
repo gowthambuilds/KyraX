@@ -1,7 +1,7 @@
 import { REST, Routes } from 'discord.js';
 import { logger } from '#utils/logger';
 
-const WHITELIST = ['help', 'ping', 'stats', 'gstart', 'gresume', 'greroll', 'gpause', 'gend'];
+const WHITELIST = ['help', 'ping', 'stats', 'gstart', 'gresume', 'greroll', 'gpause', 'gend', 'ticket', 'autobuild'];
 
 /**
  * Register slash commands globally or to a specific guild

@@ -63,13 +63,14 @@ export class Kyra extends Client {
         this.logger.info('SYSTEM', 'Kernel initialization sequence initiated...');
 
         try {
-            await this.giveaways.init();
-
             await this.eventHandler.loadEvents();
             await this.commandHandler.loadCommands();
 
             this.logger.info('AUTH', 'Requesting access to Discord Gateway...');
             await this.login(this.config.token);
+
+            // Initialize Giveaways AFTER login so we can fetch channels
+            await this.giveaways.init();
 
             // Register slash commands after login
             this.logger.info('SLASH', 'Synchronizing global interaction metadata...');

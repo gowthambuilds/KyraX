@@ -6,7 +6,7 @@ export default {
     description: 'Use this command to send Components V2 embeds',
     aliases: ['container'],
     slash: false, // Wizard works better with prefix commands
-    userPermissions: [PermissionFlagsBits.ManageMessages],
+    permissions: [PermissionFlagsBits.ManageMessages],
     async execute({ client, message, interaction, args }) {
         const user = message.author;
         const channel = message.channel;

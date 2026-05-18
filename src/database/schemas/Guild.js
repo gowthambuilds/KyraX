@@ -78,6 +78,11 @@ const GuildSchema = new mongoose.Schema({
         nickname: { type: String, default: null },
         banner: { type: String, default: null },
         lastUpdated: { type: Date, default: null }
+    },
+    ignored: {
+        channels: { type: [String], default: [] },
+        roles: { type: [String], default: [] },
+        users: { type: [String], default: [] }
     }
 }, {
     timestamps: true,

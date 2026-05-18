@@ -12,21 +12,40 @@ export class GiveawayManager {
      * Resumes all active giveaways from the database.
      */
     async init() {
-        const activeGiveaways = await Giveaway.find({ ended: false });
-        const now = Date.now();
+        // Start periodic ticker (every 60 seconds)
+        // This acts as a fail-safe for setTimeout and handles bot restarts/offline time
+        this.ticker = setInterval(() => this.checkGiveaways(), 60 * 1000);
 
-        for (const data of activeGiveaways) {
-            if (data.paused) continue;
+        await this.checkGiveaways();
+        logger.success('GIVEAWAY', 'Giveaway manager initialized with fail-safe ticker.');
+    }
 
-            const remaining = new Date(data.endTimestamp).getTime() - now;
-            if (remaining <= 0) {
-                await this.end(data._id);
-            } else {
-                const timeout = setTimeout(() => this.end(data._id), remaining);
-                this.timers.set(data._id, timeout);
+    /**
+     * Periodic check for giveaways that should end.
+     */
+    async checkGiveaways() {
+        try {
+            const activeGiveaways = await Giveaway.find({ ended: false, paused: false });
+            const now = Date.now();
+
+            for (const data of activeGiveaways) {
+                const endTimestamp = new Date(data.endTimestamp).getTime();
+                const remaining = endTimestamp - now;
+
+                if (remaining <= 0) {
+                    // Giveaway should have ended already
+                    await this.end(data._id);
+                } else if (remaining <= 60000 && !this.timers.has(data._id)) {
+                    // Giveaway ends within the next minute, set a precise timer if not already set
+                    const timeout = setTimeout(() => this.end(data._id), remaining);
+                    this.timers.set(data._id, timeout);
+                }
+                // For long running giveaways (> 1 min), we rely on the ticker
+                // this avoids 32-bit integer overflow for very long durations (e.g. 25+ days)
             }
+        } catch (error) {
+            logger.error('GIVEAWAY', 'Error in giveaway ticker:', error);
         }
-        logger.info('GIVEAWAY', `Giveaway manager initialized. Resumed ${activeGiveaways.length} giveaways.`);
     }
 
     /**
@@ -54,8 +73,11 @@ export class GiveawayManager {
             paused: false
         });
 
-        const timeout = setTimeout(() => this.end(message.id), duration);
-        this.timers.set(message.id, timeout);
+        const timeoutDelay = Math.min(duration, 60000); // Max 1 minute for setTimeout, then rely on ticker
+        if (duration <= 60000) {
+            const timeout = setTimeout(() => this.end(message.id), duration);
+            this.timers.set(message.id, timeout);
+        }
 
         return message;
     }
@@ -117,8 +139,10 @@ export class GiveawayManager {
         const remaining = newEndTimestamp.getTime() - Date.now();
 
         if (remaining > 0) {
-            const timeout = setTimeout(() => this.end(messageId), remaining);
-            this.timers.set(messageId, timeout);
+            if (remaining <= 60000) {
+                const timeout = setTimeout(() => this.end(messageId), remaining);
+                this.timers.set(messageId, timeout);
+            }
         } else {
             await this.end(messageId);
         }

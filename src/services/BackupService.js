@@ -235,6 +235,101 @@ class BackupService {
         }
     }
 
+    /**
+     * Clones a backup (by ID only, no guild restriction) into a target guild.
+     * Owner-only variant of applyBackup that works cross-server.
+     */
+    async cloneBackup(targetGuild, backupId) {
+        const backup = await Backup.findById(backupId.toUpperCase()).lean();
+        if (!backup) throw new Error('Backup not found.');
+
+        // --- STEP 1: NUKE ALL OLD CHANNELS & ROLES FIRST (parallel fetch + blast delete) ---
+        const [existingChannels, existingRoles] = await Promise.all([
+            targetGuild.channels.fetch().catch(() => new Map()),
+            targetGuild.roles.fetch().catch(() => new Map())
+        ]);
+
+        // Fire every delete simultaneously — channels AND roles at the same time
+        await Promise.allSettled([
+            // Delete all channels
+            ...[...existingChannels.values()].map(c => c.delete().catch(() => {})),
+            // Delete all deletable roles
+            ...[...existingRoles.values()]
+                .filter(r => !r.managed && r.id !== targetGuild.id && r.editable)
+                .map(r => r.delete().catch(() => {}))
+        ]);
+        // ✅ Everything is wiped — now we build from scratch
+
+        // --- STEP 2: RECREATE ROLES ---
+        const roleNameMap = new Map();
+        let rolesCreated = 0;
+
+        const storedEveryone = backup.roles.find(r => r.isEveryone);
+        if (storedEveryone) {
+            await targetGuild.roles.everyone.setPermissions(BigInt(storedEveryone.permissions)).catch(() => {});
+            roleNameMap.set(storedEveryone.name, targetGuild.id);
+            rolesCreated++;
+        }
+
+        for (const r of backup.roles.filter(r => !r.isEveryone).sort((a, b) => b.position - a.position)) {
+            const newRole = await targetGuild.roles.create({
+                name: r.name,
+                color: r.color,
+                hoist: r.hoist,
+                permissions: BigInt(r.permissions),
+                mentionable: r.mentionable
+            }).catch(() => null);
+
+            if (newRole) {
+                roleNameMap.set(r.name, newRole.id);
+                rolesCreated++;
+            }
+        }
+
+        // --- STEP 3: RECREATE CATEGORIES ---
+        const categoryMap = new Map();
+        let categoriesCreated = 0;
+        for (const cat of backup.channels.categories) {
+            const newCat = await targetGuild.channels.create({
+                name: cat.name,
+                type: 4, // ChannelType.GuildCategory
+                position: cat.position
+            }).catch(() => null);
+
+            if (newCat) {
+                categoryMap.set(cat.name, newCat);
+                categoriesCreated++;
+                const overwrites = this.mapOverwrites(cat.permissions, roleNameMap, targetGuild);
+                if (overwrites.length > 0) await newCat.permissionOverwrites.set(overwrites).catch(() => {});
+            }
+        }
+
+        // --- STEP 4: RECREATE CHANNELS ---
+        let channelsCreated = 0;
+        for (const ch of backup.channels.others) {
+            const parent = ch.parentName ? categoryMap.get(ch.parentName) : null;
+            const newCh = await targetGuild.channels.create({
+                name: ch.name,
+                type: ch.type,
+                topic: ch.topic,
+                bitrate: ch.bitrate,
+                userLimit: ch.userLimit,
+                nsfw: ch.nsfw,
+                rateLimitPerUser: ch.rateLimitPerUser,
+                parent: parent ? parent.id : null,
+                position: ch.position
+            }).catch(() => null);
+
+            if (newCh) {
+                channelsCreated++;
+                const overwrites = this.mapOverwrites(ch.permissions, roleNameMap, targetGuild);
+                if (overwrites.length > 0) await newCh.permissionOverwrites.set(overwrites).catch(() => {});
+            }
+        }
+
+        return { sourceGuildName: backup.guild.name, roles: rolesCreated, categories: categoriesCreated, channels: channelsCreated };
+    }
+
     mapOverwrites(permissions, roleNameMap, guild) {
         const overwrites = [];
         for (const p of permissions) {

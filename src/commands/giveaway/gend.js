@@ -7,7 +7,7 @@ export default {
     description: 'Manually end a giveaway',
     aliases: ['gend', 'giveaway-end'],
     slash: true,
-    userPermissions: [PermissionFlagsBits.ManageGuild],
+    permissions: [PermissionFlagsBits.ManageGuild],
     options: [
         { name: 'message_id', description: 'The ID of the giveaway message', type: 3, required: true }
     ],

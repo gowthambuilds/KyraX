@@ -1,9 +1,13 @@
-import { Events, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
+import { Events, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits } from 'discord.js';
 import { KyraUI } from '#classes/KyraUI';
+import { Guild } from '#src/database/index.js';
 
 export default {
     name: Events.InteractionCreate,
     async execute(interaction, client) {
+        // Fetch Guild settings
+        const guildSettings = await Guild.findById(interaction.guildId).lean();
+        
         // Check for maintenance mode
         if (interaction.isChatInputCommand() && client.maintenanceMode) {
             const maintenanceContainer = KyraUI.buildSimpleMessage(`⚙️ **Under Maintenance**\n\nSorry for the inconvenience! **Kyra X** is undergoing regular maintenance.\n\nIt will be back soon with better updates and bug fixes.`);
@@ -21,10 +25,29 @@ export default {
             const command = client.commands.get(interaction.commandName);
             if (!command) return;
 
-            // Check ownerOnly
-            if (command.ownerOnly && !client.config.ownerId.includes(interaction.user.id)) {
+            // --- Ignore Logic Check (Commands Only) ---
+            const isOwner = client.config.ownerId.includes(interaction.user.id);
+            const isAdmin = interaction.member?.permissions.has(PermissionFlagsBits.Administrator);
+            const isIgnored = !isOwner && !isAdmin && (
+                guildSettings?.ignored?.channels?.includes(interaction.channelId) || 
+                guildSettings?.ignored?.users?.includes(interaction.user.id) || 
+                interaction.member?.roles?.cache.some(r => guildSettings?.ignored?.roles?.includes(r.id))
+            );
+
+            if (isIgnored && command.name !== 'afk') return;
+
+            if (command.ownerOnly && !isOwner) {
                 const msg = KyraUI.buildSimpleMessage(`${client.config.emojis.error} This command is **owner-only**.`);
                 return interaction.reply({ components: msg, flags: KyraUI.getFlags(true) });
+            }
+
+            // Check permissions
+            if (command.permissions && command.permissions.length > 0) {
+                const missingPerms = command.permissions.filter(perm => !interaction.member?.permissions.has(perm));
+                if (missingPerms.length > 0 && !isOwner) {
+                    const msg = KyraUI.buildSimpleMessage(`${client.config.emojis.error} You do not have permission to use this command.`);
+                    return interaction.reply({ components: msg, flags: KyraUI.getFlags(true) });
+                }
             }
 
             try {
@@ -220,6 +243,137 @@ export default {
                     await helpCommand.execute({ client, interaction });
                 }
             }
+
+            if (interaction.customId === 'player_filter') {
+                const player = client.lavalink.kazagumo.players.get(interaction.guildId);
+                if (!player) {
+                    const msg = KyraUI.buildSimpleMessage(`${client.config.emojis.error} No active player found.`);
+                    return interaction.reply({ components: msg, flags: KyraUI.getFlags(true) });
+                }
+
+                if (interaction.member.voice.channelId !== player.voiceId) {
+                    const msg = KyraUI.buildSimpleMessage(`${client.config.emojis.error} You must be in the same voice channel as me to adjust filters.`);
+                    return interaction.reply({ components: msg, flags: KyraUI.getFlags(true) });
+                }
+
+                // Reset filters initially for a clean state (transition)
+                player.shoukaku.setFilters({});
+
+                const filter = interaction.values[0];
+                let filterName = 'Unknown';
+                let filterData = {};
+
+                switch (filter) {
+                    case 'filter_reset':
+                        filterData = {
+                            equalizer: [
+                                { band: 0, gain: 0.10 },
+                                { band: 1, gain: 0.10 },
+                                { band: 2, gain: 0.05 },
+                                { band: 12, gain: 0.10 },
+                                { band: 13, gain: 0.15 }
+                            ]
+                        };
+                        filterName = 'Default Equalizer';
+                        break;
+                    case 'filter_bassboost':
+                        filterData = {
+                            equalizer: [
+                                { band: 0, gain: 0.70 },
+                                { band: 1, gain: 0.70 },
+                                { band: 2, gain: 0.60 },
+                                { band: 3, gain: 0.40 }
+                            ]
+                        };
+                        filterName = 'Bass Boost';
+                        break;
+                    case 'filter_nightcore':
+                        filterData = {
+                            timescale: { speed: 1.2, pitch: 1.3, rate: 1.0 }
+                        };
+                        filterName = 'Nightcore';
+                        break;
+                    case 'filter_vaporwave':
+                        filterData = {
+                            timescale: { speed: 0.8, pitch: 0.8, rate: 1.0 }
+                        };
+                        filterName = 'Vaporwave';
+                        break;
+                    case 'filter_3d':
+                        filterData = { rotation: { rotationHz: 0.2 } };
+                        filterName = '3D / Rotation';
+                        break;
+                    case 'filter_karaoke':
+                        filterData = {
+                            karaoke: { level: 1.0, monoLevel: 1.0, filterBand: 220.0, filterWidth: 100.0 }
+                        };
+                        filterName = 'Karaoke';
+                        break;
+                    case 'filter_tremolo':
+                        filterData = {
+                            tremolo: { frequency: 4.0, depth: 0.75 }
+                        };
+                        filterName = 'Tremolo';
+                        break;
+                    case 'filter_vibrato':
+                        filterData = {
+                            vibrato: { frequency: 4.0, depth: 0.3 }
+                        };
+                        filterName = 'Vibrato';
+                        break;
+                    case 'filter_distortion':
+                        filterData = {
+                            distortion: {
+                                sinOffset: 0.0, sinScale: 1.0,
+                                cosOffset: 0.0, cosScale: 1.0,
+                                tanOffset: 0.0, tanScale: 1.0,
+                                offset: 0.0, scale: 1.5
+                            }
+                        };
+                        filterName = 'Distortion';
+                        break;
+                    case 'filter_lowpass':
+                        filterData = {
+                            lowPass: { smoothing: 20.0 }
+                        };
+                        filterName = 'Low Pass Filter';
+                        break;
+                    case 'filter_channelmix':
+                        filterData = {
+                            channelMix: { leftToLeft: 0.5, leftToRight: 0.5, rightToLeft: 0.5, rightToRight: 0.5 }
+                        };
+                        filterName = 'Channel Mix';
+                        break;
+                }
+
+                player.shoukaku.setFilters(filterData);
+
+                const { MusicUtils } = await import('#utils/MusicUtils');
+                const updatedPanel = MusicUtils.getPlayerPanel(client, player, player.queue.current);
+
+                await interaction.update(updatedPanel);
+                await interaction.followUp({
+                    components: KyraUI.buildSimpleMessage(`${client.config.emojis.success} Applied filter: **${filterName}**`),
+                    flags: KyraUI.getFlags(true)
+                });
+            }
+        }
+        // --- Ticket Creation & Actions ---
+        if (interaction.isButton() && interaction.customId.startsWith('ticket_action_')) {
+            const { handleTicketAction } = await import('../commands/admin/ticket.js');
+            return handleTicketAction(client, interaction);
+        }
+        if (interaction.isStringSelectMenu() && interaction.customId.startsWith('ticket_select_')) {
+            const { handleTicketAction } = await import('../commands/admin/ticket.js');
+            return handleTicketAction(client, interaction);
+        }
+        if (interaction.isModalSubmit() && interaction.customId.startsWith('ticket_modal_')) {
+            const { handleTicketModal } = await import('../commands/admin/ticket.js');
+            return handleTicketModal(client, interaction);
+        }
+        if (interaction.customId.startsWith('ticket_config_')) {
+            const { handleTicketConfig } = await import('../commands/admin/ticket.js');
+            return handleTicketConfig(client, interaction);
         }
     }
 };
