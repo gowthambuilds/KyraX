@@ -181,11 +181,4 @@ Kyra X/
 
 ## 🤝 Contributing
 
-Contributions, issues, and feature requests are welcome!
-Feel free to open an issue or submit a pull request.
-
----
-
-## 📜 License
-
-This project is licensed under the [MIT License](LICENSE).
+Even if i contribute i can't update the code cuz i don't have enough time to do that haha.
