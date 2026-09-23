@@ -12,7 +12,7 @@ export class EventHandler {
         let successCount = 0;
         let failCount = 0;
 
-        for (const file of eventFiles) {
+        const loadPromises = eventFiles.map(async (file) => {
             const filePath = path.resolve(file);
             try {
                 const { default: event } = await import(`file://${filePath}?update=${Date.now()}`);
@@ -44,7 +44,9 @@ export class EventHandler {
                 this.client.logger.error('EVENT', `Failed to integrate ${file}`, error);
                 failCount++;
             }
-        }
+        });
+
+        await Promise.all(loadPromises);
 
         if (failCount > 0) {
             this.client.logger.warn('EventHandler', `Kernel integration complete: ${successCount} active, ${failCount} failed.`);

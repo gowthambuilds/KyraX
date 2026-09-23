@@ -11,7 +11,7 @@ export class CommandHandler {
         let successCount = 0;
         let failCount = 0;
 
-        for (const file of commandFiles) {
+        const loadPromises = commandFiles.map(async (file) => {
             const filePath = path.resolve(file);
             try {
                 const { default: command } = await import(`file://${filePath}?update=${Date.now()}`);
@@ -27,7 +27,9 @@ export class CommandHandler {
                 this.client.logger.error('COMMAND', `Failed to load ${file}`, error);
                 failCount++;
             }
-        }
+        });
+
+        await Promise.all(loadPromises);
 
         if (failCount > 0) {
             this.client.logger.warn('CommandHandler', `Indexing complete: ${successCount} success, ${failCount} failure(s).`);
