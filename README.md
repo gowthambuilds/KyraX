@@ -181,4 +181,4 @@ Kyra X/
 
 ## 🤝 Contributing
 
-Even if i contribute i can't update the code cuz i don't have enough time to do that haha.
+Even if you contribute i can't update the code cuz i don't have enough time to do that haha.
